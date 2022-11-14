@@ -1,19 +1,28 @@
 ### A Pluto.jl notebook ###
-# v0.17.5
+# v0.19.14
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ e35f94a9-fd14-4617-ae89-6033d821a9c0
 begin
-	using CSV, DataFrames, ScikitLearn, Statistics, CairoMakie
+	using CairoMakie, CSV, DataFrames, ScikitLearn, Statistics
+	import IOCapture
 	import AlgebraOfGraphics as aog
 	aog.set_aog_theme!()
 	update_theme!(fontsize=16)
 end
 
+# ╔═╡ 01307ca6-d9ef-4b29-a2aa-4cb3db92f432
+using LinearAlgebra
+
+# ╔═╡ 6ae886e5-8565-4559-a2db-99cd4f1dda40
+using BenchmarkTools
+
 # ╔═╡ 6fa6d558-43d5-44bf-b62e-172f67ffb076
-@sk_import decomposition: PCA;
+IOCapture.capture() do
+	eval(quote @sk_import(decomposition: PCA) end)
+end;
 
 # ╔═╡ e7701be9-a8eb-4b44-9875-9e61d35a154d
 md"# principal component analysis (PCA) of wines
@@ -127,21 +136,91 @@ md"""
 # ╔═╡ 0550e5b0-8047-4755-b307-ff9bfb450f3a
 [features[sortperm(abs.(row); rev=true)][1:3] for row in eachrow(pca.components_)]
 
+# ╔═╡ 4e99054b-3962-46bd-baa9-05c49dcf63d0
+md"""
+🍷 From the "What is principal component analysis?" paper:
+
+	If data are standardized such that each [feature] is centered to zero... 
+	the principal components are normalized eigenvectors of the covariance matrix... 
+	ordered according to how much of the variation present in the data they contain.
+
+So, do we even need `ScikitLearn`?
+"""
+
+# ╔═╡ a569a4b2-3590-4150-83da-7cce4adfccd4
+covariance_matrix = cov(X_std)
+
+# ╔═╡ f3006fef-2ba2-4dd9-aeb0-de84cb3ccbdb
+eigenvectors = eigvecs(covariance_matrix)
+
+# ╔═╡ ee2d5616-4cae-42f0-9203-7a5b8290aa75
+eigenvalues = eigvals(covariance_matrix)
+
+# ╔═╡ 13230fb1-49b3-4ca0-859a-10020db1a9b6
+eigenvectors[:, sortperm(eigenvalues; rev=true)[1:2]]
+
+# ╔═╡ d3da9cbd-a7cd-47ad-b9a7-b92053cdf86f
+pca.components_
+
+# ╔═╡ 8ea25d0d-4cee-4b7a-ac17-2a9dfc17f307
+md"""
+🕔 Is it faster to do it in Julia or by calling the Python library?
+"""
+
+# ╔═╡ 01a291fe-7859-4a17-91b9-a82fd1165cfa
+function scikit_get_PCs(n::Int)::Matrix{Float64}
+	pca = PCA(n_components=n)
+	pca.fit(X_std)
+	return pca.components_
+end
+
+# ╔═╡ e8f8d85a-417d-4770-a521-652faea40d9c
+function julia_get_PCs(n::Int)::Matrix{Float64}
+	covariance_matrix = cov(X_std)
+	return eigvecs(covariance_matrix)[
+		:, 
+		sortperm(eigvals(covariance_matrix); rev=true)[1:n]
+	]
+end
+
+# ╔═╡ b41fa32d-5d4e-4344-9dcb-9d8eb61485c3
+n_pcs = 5
+
+# ╔═╡ 19995d0a-060d-49e8-92a9-970a647181fc
+@btime scikit_get_PCs(n_pcs)
+
+# ╔═╡ 6eeb9015-7a1e-486d-b227-3db1cba39f8e
+@btime julia_get_PCs(n_pcs)
+
+# ╔═╡ de353fb5-9eac-4dd3-bed8-cfbc2e147711
+@assert abs.(scikit_get_PCs(n_pcs) / julia_get_PCs(n_pcs)') ≈ I
+
+# ╔═╡ 68d0aaf4-bea7-4466-95fc-86dcd68080e7
+md"""
+!!! ok "Julia wins 🚀"
+	Using pure Julia to get the principal components on this example is about **five times faster** and the result is identical to within ``±1×10^{-8}`` (although not necessarily with identical sign--think about if that means anything!)
+"""
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ScikitLearn = "3646fa90-6ef7-5e7e-9f22-8aca16db6324"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
 AlgebraOfGraphics = "~0.6.12"
+BenchmarkTools = "~1.3.2"
 CSV = "~0.10.7"
 CairoMakie = "~0.9.2"
 DataFrames = "~1.4.2"
+IOCapture = "~0.2.2"
 ScikitLearn = "~0.6.5"
 """
 
@@ -151,7 +230,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "fd7b3bf52117cb5f59405baf9ff3d8fa470fa324"
+project_hash = "16ac9143c41a4806098cad1269ffe6295a1a0b37"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -203,6 +282,12 @@ version = "1.0.1"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.BenchmarkTools]]
+deps = ["JSON", "Logging", "Printf", "Profile", "Statistics", "UUIDs"]
+git-tree-sha1 = "d9a9701b899b30332bbcb3e1679c41cce81fb0e8"
+uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+version = "1.3.2"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -563,6 +648,12 @@ deps = ["DualNumbers", "LinearAlgebra", "OpenLibm_jll", "SpecialFunctions", "Tes
 git-tree-sha1 = "709d864e3ed6e3545230601f94e11ebc65994641"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.11"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.2.2"
 
 [[deps.ImageCore]]
 deps = ["AbstractFFTs", "ColorVectorSpace", "Colors", "FixedPointNumbers", "Graphics", "MappedArrays", "MosaicViews", "OffsetArrays", "PaddedViews", "Reexport"]
@@ -1039,6 +1130,10 @@ version = "2.2.0"
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
+[[deps.Profile]]
+deps = ["Printf"]
+uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+
 [[deps.ProgressMeter]]
 deps = ["Distributed", "Printf"]
 git-tree-sha1 = "d7a7aef8f8f2d537104f170139553b14dfe39fe9"
@@ -1514,5 +1609,21 @@ version = "3.5.0+0"
 # ╠═cd82e4e4-f38a-4718-9ad3-1a3a6d5c7212
 # ╟─d6fe4383-4749-4b16-95fc-c2d91e7e1c7b
 # ╠═0550e5b0-8047-4755-b307-ff9bfb450f3a
+# ╟─4e99054b-3962-46bd-baa9-05c49dcf63d0
+# ╠═a569a4b2-3590-4150-83da-7cce4adfccd4
+# ╠═01307ca6-d9ef-4b29-a2aa-4cb3db92f432
+# ╠═f3006fef-2ba2-4dd9-aeb0-de84cb3ccbdb
+# ╠═ee2d5616-4cae-42f0-9203-7a5b8290aa75
+# ╠═13230fb1-49b3-4ca0-859a-10020db1a9b6
+# ╠═d3da9cbd-a7cd-47ad-b9a7-b92053cdf86f
+# ╟─8ea25d0d-4cee-4b7a-ac17-2a9dfc17f307
+# ╠═6ae886e5-8565-4559-a2db-99cd4f1dda40
+# ╠═01a291fe-7859-4a17-91b9-a82fd1165cfa
+# ╠═e8f8d85a-417d-4770-a521-652faea40d9c
+# ╠═b41fa32d-5d4e-4344-9dcb-9d8eb61485c3
+# ╠═19995d0a-060d-49e8-92a9-970a647181fc
+# ╠═6eeb9015-7a1e-486d-b227-3db1cba39f8e
+# ╠═de353fb5-9eac-4dd3-bed8-cfbc2e147711
+# ╟─68d0aaf4-bea7-4466-95fc-86dcd68080e7
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
