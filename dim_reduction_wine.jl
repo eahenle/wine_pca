@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.14
+# v0.17.5
 
 using Markdown
 using InteractiveUtils
@@ -11,6 +11,11 @@ begin
 	import AlgebraOfGraphics as aog
 	aog.set_aog_theme!()
 	update_theme!(fontsize=16)
+	IOCapture.capture() do
+		eval(quote @sk_import(decomposition: PCA) end)
+	end
+	using PlutoUI
+	TableOfContents(title="Wine PCA")
 end
 
 # ╔═╡ 01307ca6-d9ef-4b29-a2aa-4cb3db92f432
@@ -19,13 +24,9 @@ using LinearAlgebra
 # ╔═╡ 6ae886e5-8565-4559-a2db-99cd4f1dda40
 using BenchmarkTools
 
-# ╔═╡ 6fa6d558-43d5-44bf-b62e-172f67ffb076
-IOCapture.capture() do
-	eval(quote @sk_import(decomposition: PCA) end)
-end;
-
 # ╔═╡ e7701be9-a8eb-4b44-9875-9e61d35a154d
-md"# principal component analysis (PCA) of wines
+md"
+# Data
 
 
 _source_: UCI Machine Learning repository [here](https://archive.ics.uci.edu/ml/datasets/wine).
@@ -38,6 +39,16 @@ _source_: UCI Machine Learning repository [here](https://archive.ics.uci.edu/ml/
 
 🍷 read in the wine data as a `DataFrame`.
 "
+
+# ╔═╡ 39045f45-8787-4184-9892-04237bee4d64
+md"""
+## Download
+"""
+
+# ╔═╡ 73513213-c53d-4a10-8d90-238888e3b188
+md"""
+## Data and Metadata
+"""
 
 # ╔═╡ a94e462b-96d3-4b7f-b5e8-1e84eca5b7a5
 # download the data file
@@ -53,6 +64,11 @@ download(
 	"wine.names"
 );
 
+# ╔═╡ 2f65c427-67a0-4e9f-b29b-e60960582e3c
+md"""
+## Extract Column Names from Metadata
+"""
+
 # ╔═╡ 6cb0c046-ecf1-4727-9d59-e7f57926d8e3
 label_column = "Variety"
 
@@ -67,8 +83,31 @@ features = [
 	if !isnothing(x)
 ]
 
+# ╔═╡ 854cd3fb-d6c3-42d1-ae94-510cefd4e956
+md"""
+## Build Data Objects
+"""
+
+# ╔═╡ 7be51ec2-9198-435c-ab9b-4d3ac22c0f0d
+md"""
+### DataFrame
+"""
+
 # ╔═╡ 2e56c0eb-159f-4662-bac1-f8fe854af1cb
 df = CSV.read("wine.data", DataFrame, header=vcat(label_column, features))
+
+# ╔═╡ 7ecb16ef-8f85-4cab-a842-7229997831bf
+md"""
+### Class Labels
+"""
+
+# ╔═╡ e9cc8594-f49b-493a-a817-0886c3417269
+labels = df[:, label_column]
+
+# ╔═╡ bdb4d691-50c8-405d-a09e-9823c6020445
+md"""
+### Feature Matrix
+"""
 
 # ╔═╡ dd39776a-b853-4617-ada9-16a50ff2044a
 md"🍷 construct the (# wines) × (# attributes) feature matrix `X` that lists the attributes of the wines in the rows. so each row represents a wine, and each column represents an attribute of the wines. be sure not to include the `\"Variety\"`, as this is a label.
@@ -80,8 +119,10 @@ md"🍷 construct the (# wines) × (# attributes) feature matrix `X` that lists 
 # ╔═╡ 154586dd-ae21-4c1a-80a9-7a045557a15f
 X = Matrix(df[:, features])
 
-# ╔═╡ e9cc8594-f49b-493a-a817-0886c3417269
-labels = df[:, label_column]
+# ╔═╡ d2360f13-c0f8-4dec-a62e-c62e780284e8
+md"""
+## Standardized Data
+"""
 
 # ╔═╡ f87ffcb2-c68a-4efa-8bc4-881e8a53aab4
 md"🍷 PCA is most effective when the values of the features are standardized. loop through each column of the feature matrix `X` and standardize each feature by (i) subtracting the mean value of that feature among the instances and (ii) dividing by the standard deviation of the values of the feature among the instances. you should notice that each value of the feature tends to lie in $[-2, 2]$, but outliers can lie outside of the interval.
@@ -89,6 +130,16 @@ md"🍷 PCA is most effective when the values of the features are standardized. 
 
 # ╔═╡ e93311b1-6812-4111-a14a-a2c30fefa91e
 X_std = reduce(hcat, (col .- mean(col)) / std(col) for col in eachcol(X))
+
+# ╔═╡ c81a37ef-7bcd-4c6a-8db4-fd7771994dad
+md"""
+# PCA (ScikitLearn)
+"""
+
+# ╔═╡ 50fc21e0-e104-43bd-95b9-b33796ecdd15
+md"""
+## Fit Model, Transform Data
+"""
 
 # ╔═╡ 24b78de1-d624-4e02-97c3-b4fb55234e46
 md"🍷 use `PCA` from `scikit-learn` and its `fit_transform` method to conduct PCA on the wine data. particularly, embed each wine, originally represented as a 13-dimensional (the # of attributes) feature vector, into a 2D space conducive for visualization. i.e. retain only the first two principal components."
@@ -98,6 +149,11 @@ begin
 	pca = PCA(n_components=2)
 	X̂   = pca.fit_transform(X_std)
 end
+
+# ╔═╡ b588fab1-bf51-487b-a7aa-f277aa7555ac
+md"""
+## Visualization
+"""
 
 # ╔═╡ 4727f313-b81a-4939-bb8d-5ffa2d9100c4
 md"🍷 visualize the first two principal components of each wine. i.e. plot the 2D embeddings of the wines. color each point (representing a wine) by the variety of wine it belongs to, the labels in the first column of the wine data that we held-out from the unsupervised PCA. include a legend to indicate which color corresponds to which wine variety (1, 2, 3).
@@ -112,12 +168,27 @@ begin
 	fig
 end
 
+# ╔═╡ 6c592db0-0d89-4b93-8c2e-9cc241dbdaf2
+md"""
+## Analysis
+"""
+
+# ╔═╡ 5ce41a7d-4a79-49ed-b63c-3f9f4c758afa
+md"""
+### Clustering?
+"""
+
 # ╔═╡ a12141d9-087d-4306-a822-dd96ed83d416
 md"🍷 judging from your plot, was PCA able to find meaningful pattterns/structure in the 13-dimensional wine feature vectors, even though we retained only two dimensions?"
 
 # ╔═╡ e5e16230-ebe6-4ae1-924e-550d8b4fafe6
 md"""
 Yep.
+"""
+
+# ╔═╡ 8dfd1923-7ff7-4002-a3e9-14b347661588
+md"""
+### Variance Captured?
 """
 
 # ╔═╡ 043c47e5-1d82-4d4b-8740-85cffe445cad
@@ -128,6 +199,11 @@ md"""
  $(round(sum(pca.explained_variance_ratio_) * 100, digits=1)) %
 """
 
+# ╔═╡ 49b5df5c-47d8-4c0e-9877-1714c856e0a2
+md"""
+### PC Features?
+"""
+
 # ╔═╡ d6fe4383-4749-4b16-95fc-c2d91e7e1c7b
 md"""
 🍷 which features are weighted the most heavily in the first two principal components?
@@ -135,6 +211,16 @@ md"""
 
 # ╔═╡ 0550e5b0-8047-4755-b307-ff9bfb450f3a
 [features[sortperm(abs.(row); rev=true)][1:3] for row in eachrow(pca.components_)]
+
+# ╔═╡ 58d9b9b6-4be3-4f2c-a9f1-56e01e94b7b3
+md"""
+# PCA (Pure Julia)
+"""
+
+# ╔═╡ ea286bb2-5a1a-4f13-9fe5-d65397bebeef
+md"""
+## Definition
+"""
 
 # ╔═╡ 4e99054b-3962-46bd-baa9-05c49dcf63d0
 md"""
@@ -147,8 +233,23 @@ md"""
 So, do we even need `ScikitLearn`?
 """
 
+# ╔═╡ 7821ff5a-8ea7-438c-82f5-05d4b43fc664
+md"""
+## Calculation
+"""
+
+# ╔═╡ 90ba828b-bbb9-4f36-8551-7a69382b92a2
+md"""
+### Covariance Matrix
+"""
+
 # ╔═╡ a569a4b2-3590-4150-83da-7cce4adfccd4
 covariance_matrix = cov(X_std)
+
+# ╔═╡ 8ad5d7a6-4d2d-4fa5-b5f6-c92ee4233e81
+md"""
+### Eigenvectors & Eigenvalues
+"""
 
 # ╔═╡ f3006fef-2ba2-4dd9-aeb0-de84cb3ccbdb
 eigenvectors = eigvecs(covariance_matrix)
@@ -156,11 +257,31 @@ eigenvectors = eigvecs(covariance_matrix)
 # ╔═╡ ee2d5616-4cae-42f0-9203-7a5b8290aa75
 eigenvalues = eigvals(covariance_matrix)
 
+# ╔═╡ a277994f-55ac-4143-83d0-43f92af61757
+md"""
+### PC Comparison
+"""
+
+# ╔═╡ fcdfb6a1-3666-473c-802f-e910789025a5
+md"""
+#### Pure Julia:
+"""
+
 # ╔═╡ 13230fb1-49b3-4ca0-859a-10020db1a9b6
 eigenvectors[:, sortperm(eigenvalues; rev=true)[1:2]]
 
+# ╔═╡ 9568f5d3-d1a9-4517-a9f4-19d55598dcc0
+md"""
+#### ScikitLearn:
+"""
+
 # ╔═╡ d3da9cbd-a7cd-47ad-b9a7-b92053cdf86f
 pca.components_
+
+# ╔═╡ c4c10ed2-26a1-4fda-8db7-acc141fcd0fe
+md"""
+## Speed Test
+"""
 
 # ╔═╡ 8ea25d0d-4cee-4b7a-ac17-2a9dfc17f307
 md"""
@@ -186,14 +307,34 @@ end
 # ╔═╡ b41fa32d-5d4e-4344-9dcb-9d8eb61485c3
 n_pcs = 5
 
+# ╔═╡ 3ef60060-0f85-432d-9370-7c4aa8048240
+md"""
+## Results
+"""
+
+# ╔═╡ b2571553-2b68-491b-97ef-44ebab6ebf0f
+md"""
+### Speed
+"""
+
 # ╔═╡ 19995d0a-060d-49e8-92a9-970a647181fc
 @btime scikit_get_PCs(n_pcs)
 
 # ╔═╡ 6eeb9015-7a1e-486d-b227-3db1cba39f8e
 @btime julia_get_PCs(n_pcs)
 
+# ╔═╡ f03fd8e4-190d-4b80-b34a-4e7b22b496d3
+md"""
+### Correctness
+"""
+
 # ╔═╡ de353fb5-9eac-4dd3-bed8-cfbc2e147711
 @assert abs.(scikit_get_PCs(n_pcs) / julia_get_PCs(n_pcs)') ≈ I
+
+# ╔═╡ b41ac685-9f54-434b-8c54-df5ac973e58e
+md"""
+## Conclusion
+"""
 
 # ╔═╡ 68d0aaf4-bea7-4466-95fc-86dcd68080e7
 md"""
@@ -211,6 +352,7 @@ CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 ScikitLearn = "3646fa90-6ef7-5e7e-9f22-8aca16db6324"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
@@ -221,6 +363,7 @@ CSV = "~0.10.7"
 CairoMakie = "~0.9.2"
 DataFrames = "~1.4.2"
 IOCapture = "~0.2.2"
+PlutoUI = "~0.7.48"
 ScikitLearn = "~0.6.5"
 """
 
@@ -230,13 +373,19 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.2"
 manifest_format = "2.0"
-project_hash = "16ac9143c41a4806098cad1269ffe6295a1a0b37"
+project_hash = "84d601465420a20c168a6d60d2d9e2242013c856"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
 git-tree-sha1 = "69f7020bd72f069c219b5e8c236c1fa90d2cb409"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 version = "1.2.1"
+
+[[deps.AbstractPlutoDingetjes]]
+deps = ["Pkg"]
+git-tree-sha1 = "8eaf9f1b4921132a4cff3f36a1d9ba923b14a481"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.1.4"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "52b3b436f8f73133d7bc3a6c71ee7ed6ab2ab754"
@@ -649,6 +798,18 @@ git-tree-sha1 = "709d864e3ed6e3545230601f94e11ebc65994641"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.11"
 
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "8d511d5b81240fc8e6802386302675bdf47737b9"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.4"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "c47c5fa4c5308f27ccaac35504858d8914e102f9"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "0.9.4"
+
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
 git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
@@ -881,6 +1042,11 @@ version = "0.3.18"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
+[[deps.MIMEs]]
+git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "0.1.4"
+
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg"]
 git-tree-sha1 = "2ce8695e1e699b68702c03402672a69f54b8aca9"
@@ -1102,6 +1268,12 @@ deps = ["ColorSchemes", "Colors", "Dates", "Printf", "Random", "Reexport", "Snoo
 git-tree-sha1 = "21303256d239f6b484977314674aef4bb1fe4420"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.3.1"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "efc140104e6d0ae3e7e30d56c98c4a927154d684"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.48"
 
 [[deps.PolygonOps]]
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
@@ -1410,10 +1582,20 @@ git-tree-sha1 = "8a75929dcd3c38611db2f8d08546decb514fcadf"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.9.9"
 
+[[deps.Tricks]]
+git-tree-sha1 = "6bac775f2d42a611cdfcd1fb217ee719630c4175"
+uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+version = "0.1.6"
+
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
 uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
+
+[[deps.URIs]]
+git-tree-sha1 = "e59ecc5a41b000fa94423a578d29290c7266fc10"
+uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
+version = "1.4.0"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -1587,43 +1769,70 @@ version = "3.5.0+0"
 
 # ╔═╡ Cell order:
 # ╠═e35f94a9-fd14-4617-ae89-6033d821a9c0
-# ╠═6fa6d558-43d5-44bf-b62e-172f67ffb076
 # ╟─e7701be9-a8eb-4b44-9875-9e61d35a154d
+# ╟─39045f45-8787-4184-9892-04237bee4d64
+# ╟─73513213-c53d-4a10-8d90-238888e3b188
 # ╠═a94e462b-96d3-4b7f-b5e8-1e84eca5b7a5
 # ╠═c1e823e7-3935-4d22-aed0-e8619e19d9a0
+# ╟─2f65c427-67a0-4e9f-b29b-e60960582e3c
 # ╠═6cb0c046-ecf1-4727-9d59-e7f57926d8e3
 # ╠═7fd1a71e-2fcf-4b83-aea0-9a3bb268efb4
+# ╟─854cd3fb-d6c3-42d1-ae94-510cefd4e956
+# ╟─7be51ec2-9198-435c-ab9b-4d3ac22c0f0d
 # ╠═2e56c0eb-159f-4662-bac1-f8fe854af1cb
+# ╟─7ecb16ef-8f85-4cab-a842-7229997831bf
+# ╠═e9cc8594-f49b-493a-a817-0886c3417269
+# ╟─bdb4d691-50c8-405d-a09e-9823c6020445
 # ╟─dd39776a-b853-4617-ada9-16a50ff2044a
 # ╠═154586dd-ae21-4c1a-80a9-7a045557a15f
-# ╠═e9cc8594-f49b-493a-a817-0886c3417269
+# ╟─d2360f13-c0f8-4dec-a62e-c62e780284e8
 # ╟─f87ffcb2-c68a-4efa-8bc4-881e8a53aab4
 # ╠═e93311b1-6812-4111-a14a-a2c30fefa91e
+# ╟─c81a37ef-7bcd-4c6a-8db4-fd7771994dad
+# ╟─50fc21e0-e104-43bd-95b9-b33796ecdd15
 # ╟─24b78de1-d624-4e02-97c3-b4fb55234e46
 # ╠═c56868a3-a4e1-4e03-aba7-538f4b725b02
+# ╟─b588fab1-bf51-487b-a7aa-f277aa7555ac
 # ╟─4727f313-b81a-4939-bb8d-5ffa2d9100c4
 # ╠═1b4a9e8f-ea94-45d9-8559-65084c688f14
+# ╟─6c592db0-0d89-4b93-8c2e-9cc241dbdaf2
+# ╟─5ce41a7d-4a79-49ed-b63c-3f9f4c758afa
 # ╟─a12141d9-087d-4306-a822-dd96ed83d416
 # ╠═e5e16230-ebe6-4ae1-924e-550d8b4fafe6
+# ╟─8dfd1923-7ff7-4002-a3e9-14b347661588
 # ╟─043c47e5-1d82-4d4b-8740-85cffe445cad
 # ╠═cd82e4e4-f38a-4718-9ad3-1a3a6d5c7212
+# ╟─49b5df5c-47d8-4c0e-9877-1714c856e0a2
 # ╟─d6fe4383-4749-4b16-95fc-c2d91e7e1c7b
 # ╠═0550e5b0-8047-4755-b307-ff9bfb450f3a
+# ╟─58d9b9b6-4be3-4f2c-a9f1-56e01e94b7b3
+# ╟─ea286bb2-5a1a-4f13-9fe5-d65397bebeef
 # ╟─4e99054b-3962-46bd-baa9-05c49dcf63d0
+# ╟─7821ff5a-8ea7-438c-82f5-05d4b43fc664
+# ╟─90ba828b-bbb9-4f36-8551-7a69382b92a2
 # ╠═a569a4b2-3590-4150-83da-7cce4adfccd4
+# ╟─8ad5d7a6-4d2d-4fa5-b5f6-c92ee4233e81
 # ╠═01307ca6-d9ef-4b29-a2aa-4cb3db92f432
 # ╠═f3006fef-2ba2-4dd9-aeb0-de84cb3ccbdb
 # ╠═ee2d5616-4cae-42f0-9203-7a5b8290aa75
+# ╟─a277994f-55ac-4143-83d0-43f92af61757
+# ╟─fcdfb6a1-3666-473c-802f-e910789025a5
 # ╠═13230fb1-49b3-4ca0-859a-10020db1a9b6
+# ╟─9568f5d3-d1a9-4517-a9f4-19d55598dcc0
 # ╠═d3da9cbd-a7cd-47ad-b9a7-b92053cdf86f
+# ╟─c4c10ed2-26a1-4fda-8db7-acc141fcd0fe
 # ╟─8ea25d0d-4cee-4b7a-ac17-2a9dfc17f307
 # ╠═6ae886e5-8565-4559-a2db-99cd4f1dda40
 # ╠═01a291fe-7859-4a17-91b9-a82fd1165cfa
 # ╠═e8f8d85a-417d-4770-a521-652faea40d9c
 # ╠═b41fa32d-5d4e-4344-9dcb-9d8eb61485c3
+# ╟─3ef60060-0f85-432d-9370-7c4aa8048240
+# ╟─b2571553-2b68-491b-97ef-44ebab6ebf0f
 # ╠═19995d0a-060d-49e8-92a9-970a647181fc
 # ╠═6eeb9015-7a1e-486d-b227-3db1cba39f8e
+# ╟─f03fd8e4-190d-4b80-b34a-4e7b22b496d3
 # ╠═de353fb5-9eac-4dd3-bed8-cfbc2e147711
+# ╟─b41ac685-9f54-434b-8c54-df5ac973e58e
 # ╟─68d0aaf4-bea7-4466-95fc-86dcd68080e7
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
