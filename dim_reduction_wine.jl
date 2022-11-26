@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.17.5
+# v0.19.16
 
 using Markdown
 using InteractiveUtils
@@ -15,7 +15,7 @@ begin
 		eval(quote @sk_import(decomposition: PCA) end)
 	end
 	using PlutoUI
-	TableOfContents(title="Wine PCA")
+	TableOfContents(title="Wine Clustering")
 end
 
 # ╔═╡ 01307ca6-d9ef-4b29-a2aa-4cb3db92f432
@@ -23,6 +23,9 @@ using LinearAlgebra
 
 # ╔═╡ 6ae886e5-8565-4559-a2db-99cd4f1dda40
 using BenchmarkTools
+
+# ╔═╡ 96b6514a-52dc-4404-b2f9-7c929959ab8d
+using ManifoldLearning
 
 # ╔═╡ e7701be9-a8eb-4b44-9875-9e61d35a154d
 md"
@@ -161,8 +164,13 @@ md"🍷 visualize the first two principal components of each wine. i.e. plot the
 
 # ╔═╡ 1b4a9e8f-ea94-45d9-8559-65084c688f14
 begin
-	fig = Figure()
-	ax  = Axis(fig[1, 1], xlabel="PC 1", ylabel="PC 2", title="Wines After PCA")
+	local fig = Figure()
+	local ax  = Axis(
+		fig[1, 1], 
+		xlabel="PC 1", 
+		ylabel="PC 2", 
+		title="Wines After PCA"
+	)
 	map(label -> scatter!(X̂[labels .== label, :], label="$label"), unique(labels))
 	fig[1, 2] = Legend(fig, ax, label_column, framevisible=false)
 	fig
@@ -210,6 +218,7 @@ md"""
 """
 
 # ╔═╡ 0550e5b0-8047-4755-b307-ff9bfb450f3a
+# get the 3 highest (absolute) weighted features from our 2 principal components
 [features[sortperm(abs.(row); rev=true)][1:3] for row in eachrow(pca.components_)]
 
 # ╔═╡ 58d9b9b6-4be3-4f2c-a9f1-56e01e94b7b3
@@ -257,9 +266,9 @@ eigenvectors = eigvecs(covariance_matrix)
 # ╔═╡ ee2d5616-4cae-42f0-9203-7a5b8290aa75
 eigenvalues = eigvals(covariance_matrix)
 
-# ╔═╡ a277994f-55ac-4143-83d0-43f92af61757
+# ╔═╡ d014b59d-9d7b-4881-8161-31fd13c6913e
 md"""
-### PC Comparison
+### Principal Components
 """
 
 # ╔═╡ fcdfb6a1-3666-473c-802f-e910789025a5
@@ -268,7 +277,7 @@ md"""
 """
 
 # ╔═╡ 13230fb1-49b3-4ca0-859a-10020db1a9b6
-eigenvectors[:, sortperm(eigenvalues; rev=true)[1:2]]
+principal_components = eigenvectors[:, sortperm(eigenvalues; rev=true)[1:2]]
 
 # ╔═╡ 9568f5d3-d1a9-4517-a9f4-19d55598dcc0
 md"""
@@ -277,6 +286,12 @@ md"""
 
 # ╔═╡ d3da9cbd-a7cd-47ad-b9a7-b92053cdf86f
 pca.components_
+
+# ╔═╡ e23cb3cd-e6c5-4dc9-bef0-7a8a95c85ed8
+md"""
+!!! note
+	The Julia result gives the principal components as column vectors, so the result is the transpose of the matrix we get from ScikitLearn (where the principal components are row vectors).
+"""
 
 # ╔═╡ c4c10ed2-26a1-4fda-8db7-acc141fcd0fe
 md"""
@@ -342,6 +357,33 @@ md"""
 	Using pure Julia to get the principal components on this example is about **five times faster** and the result is identical to within ``±1×10^{-8}`` (although not necessarily with identical sign--think about if that means anything!)
 """
 
+# ╔═╡ 0f242713-153e-4daa-8261-b07b8d2ee4a6
+md"""
+# Diffusion Mapping
+"""
+
+# ╔═╡ e271410c-374a-4319-8c77-af54043b76a1
+# learn the diffusion mapping
+d_mat = fit(DiffMap, X_std', kernel=(x, y) -> x' * y)
+
+# ╔═╡ 27a4f232-6a30-4a72-883b-867810525a13
+# get the transformed coordinates
+d_r = ManifoldLearning.transform(d_mat)
+
+# ╔═╡ 875ce3f2-e5c4-44a9-9422-99a37f34889a
+begin
+	local fig = Figure()
+	local ax  = Axis(
+		fig[1, 1], 
+		xlabel="Manifold Vector 1", 
+		ylabel="Manifold Vector 2", 
+		title="Wines After Diffusion Mapping"
+	)
+	map(label -> scatter!(d_r[:, labels .== label], label="$label"), unique(labels))
+	fig[1, 2] = Legend(fig, ax, label_column, framevisible=false)
+	fig
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -352,6 +394,7 @@ CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+ManifoldLearning = "06eb3307-b2af-5a2a-abea-d33192699d32"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 ScikitLearn = "3646fa90-6ef7-5e7e-9f22-8aca16db6324"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
@@ -363,6 +406,7 @@ CSV = "~0.10.7"
 CairoMakie = "~0.9.2"
 DataFrames = "~1.4.2"
 IOCapture = "~0.2.2"
+ManifoldLearning = "~0.9.0"
 PlutoUI = "~0.7.48"
 ScikitLearn = "~0.6.5"
 """
@@ -371,9 +415,9 @@ ScikitLearn = "~0.6.5"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.2"
+julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "84d601465420a20c168a6d60d2d9e2242013c856"
+project_hash = "bc710e0e2599f8834a4bad3c520ae8ec1a0e0ca2"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -413,6 +457,24 @@ version = "0.4.1"
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 version = "1.1.1"
+
+[[deps.ArnoldiMethod]]
+deps = ["LinearAlgebra", "Random", "StaticArrays"]
+git-tree-sha1 = "62e51b39331de8911e4a7ff6f5aaf38a5f4cc0ae"
+uuid = "ec485272-7323-5ecc-a04f-4719b315124d"
+version = "0.2.0"
+
+[[deps.Arpack]]
+deps = ["Arpack_jll", "Libdl", "LinearAlgebra", "Logging"]
+git-tree-sha1 = "9b9b347613394885fd1c8c7729bfc60528faa436"
+uuid = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
+version = "0.5.4"
+
+[[deps.Arpack_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "OpenBLAS_jll", "Pkg"]
+git-tree-sha1 = "5ba6c757e8feccf03a1554dfaf3e26b3cfc7fd5e"
+uuid = "68821587-b530-5797-8361-c406ea357684"
+version = "3.5.1+1"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -526,6 +588,11 @@ deps = ["ColorTypes", "FixedPointNumbers", "Reexport"]
 git-tree-sha1 = "417b0ed7b8b838aa6ca0a87aadf1bb9eb111ce40"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.12.8"
+
+[[deps.Combinatorics]]
+git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
+uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+version = "1.0.2"
 
 [[deps.Compat]]
 deps = ["Dates", "LinearAlgebra", "UUIDs"]
@@ -774,6 +841,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "344bf40dcab1073aca04aa0df4fb092f920e4011"
 uuid = "3b182d85-2403-5c21-9c21-1e1f0cc25472"
 version = "1.3.14+0"
+
+[[deps.Graphs]]
+deps = ["ArnoldiMethod", "Compat", "DataStructures", "Distributed", "Inflate", "LinearAlgebra", "Random", "SharedArrays", "SimpleTraits", "SparseArrays", "Statistics"]
+git-tree-sha1 = "ba2d094a88b6b287bd25cfa86f301e7693ffae2f"
+uuid = "86223c79-3864-5bf0-83f7-82e725a168b6"
+version = "1.7.4"
 
 [[deps.GridLayoutBase]]
 deps = ["GeometryBasics", "InteractiveUtils", "Observables"]
@@ -1071,6 +1144,12 @@ git-tree-sha1 = "c1885d865632e7f37e5a1489a164f44c54fb80c9"
 uuid = "20f20a25-4f0e-4fdf-b5d1-57303727442b"
 version = "0.5.2"
 
+[[deps.ManifoldLearning]]
+deps = ["Combinatorics", "Graphs", "LinearAlgebra", "MultivariateStats", "Random", "SparseArrays", "Statistics", "StatsAPI"]
+git-tree-sha1 = "4c5564c707899c3b6bc6d324b05e43eb7f277f2b"
+uuid = "06eb3307-b2af-5a2a-abea-d33192699d32"
+version = "0.9.0"
+
 [[deps.MappedArrays]]
 git-tree-sha1 = "e8b359ef06ec72e8c030463fe02efe5527ee5142"
 uuid = "dbb5928d-eab1-5f90-85c2-b9b0edb7c900"
@@ -1120,6 +1199,12 @@ version = "0.3.3"
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 version = "2022.2.1"
+
+[[deps.MultivariateStats]]
+deps = ["Arpack", "LinearAlgebra", "SparseArrays", "Statistics", "StatsBase"]
+git-tree-sha1 = "6d019f5a0465522bbfdd68ecfad7f86b535d6935"
+uuid = "6f286f6a-111f-5878-ab1e-185364afe411"
+version = "0.9.0"
 
 [[deps.NaNMath]]
 deps = ["OpenLibm_jll"]
@@ -1448,6 +1533,12 @@ git-tree-sha1 = "d263a08ec505853a5ff1c1ebde2070419e3f28e9"
 uuid = "73760f76-fbc4-59ce-8f25-708e95d2df96"
 version = "0.4.0"
 
+[[deps.SimpleTraits]]
+deps = ["InteractiveUtils", "MacroTools"]
+git-tree-sha1 = "5d7e3f4e11935503d3ecaf7186eac40602e7d231"
+uuid = "699a6c99-e7fa-54fc-8d76-47d257e15c1d"
+version = "0.9.4"
+
 [[deps.Sixel]]
 deps = ["Dates", "FileIO", "ImageCore", "IndirectArrays", "OffsetArrays", "REPL", "libsixel_jll"]
 git-tree-sha1 = "8fb59825be681d451c246a795117f317ecbcaa28"
@@ -1768,7 +1859,7 @@ version = "3.5.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═e35f94a9-fd14-4617-ae89-6033d821a9c0
+# ╟─e35f94a9-fd14-4617-ae89-6033d821a9c0
 # ╟─e7701be9-a8eb-4b44-9875-9e61d35a154d
 # ╟─39045f45-8787-4184-9892-04237bee4d64
 # ╟─73513213-c53d-4a10-8d90-238888e3b188
@@ -1815,11 +1906,12 @@ version = "3.5.0+0"
 # ╠═01307ca6-d9ef-4b29-a2aa-4cb3db92f432
 # ╠═f3006fef-2ba2-4dd9-aeb0-de84cb3ccbdb
 # ╠═ee2d5616-4cae-42f0-9203-7a5b8290aa75
-# ╟─a277994f-55ac-4143-83d0-43f92af61757
+# ╟─d014b59d-9d7b-4881-8161-31fd13c6913e
 # ╟─fcdfb6a1-3666-473c-802f-e910789025a5
 # ╠═13230fb1-49b3-4ca0-859a-10020db1a9b6
 # ╟─9568f5d3-d1a9-4517-a9f4-19d55598dcc0
 # ╠═d3da9cbd-a7cd-47ad-b9a7-b92053cdf86f
+# ╟─e23cb3cd-e6c5-4dc9-bef0-7a8a95c85ed8
 # ╟─c4c10ed2-26a1-4fda-8db7-acc141fcd0fe
 # ╟─8ea25d0d-4cee-4b7a-ac17-2a9dfc17f307
 # ╠═6ae886e5-8565-4559-a2db-99cd4f1dda40
@@ -1834,5 +1926,10 @@ version = "3.5.0+0"
 # ╠═de353fb5-9eac-4dd3-bed8-cfbc2e147711
 # ╟─b41ac685-9f54-434b-8c54-df5ac973e58e
 # ╟─68d0aaf4-bea7-4466-95fc-86dcd68080e7
+# ╟─0f242713-153e-4daa-8261-b07b8d2ee4a6
+# ╠═96b6514a-52dc-4404-b2f9-7c929959ab8d
+# ╠═e271410c-374a-4319-8c77-af54043b76a1
+# ╠═27a4f232-6a30-4a72-883b-867810525a13
+# ╠═875ce3f2-e5c4-44a9-9422-99a37f34889a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
